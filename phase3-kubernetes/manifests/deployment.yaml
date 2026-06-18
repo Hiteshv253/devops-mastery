@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-laravel-app
+  namespace: default
+  labels:
+    app: devops-laravel-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: devops-laravel-app
+  template:
+    metadata:
+      labels:
+        app: devops-laravel-app
+    spec:
+      # Shared emptyDir volume to share PHP files with Nginx
+      volumes:
+        - name: shared-files
+          emptyDir: {}
+        - name: nginx-config-volume
+          configMap:
+            name: nginx-config
+
+      # Init Container: Copies Laravel codebase to the shared volume
+      # so Nginx sidecar can serve static assets and verify paths.
+      initContainers:
+        - name: install-code
+          image: devops_laravel_app:latest # Placeholder for built image
+          imagePullPolicy: IfNotPresent
+          command: ["cp", "-Rp", "/var/www/html/.", "/shared-volume"]
+          volumeMounts:
+            - name: shared-files
+              mountPath: /shared-volume
+
+      containers:
+        # Container 1: PHP-FPM Application Server
+        - name: php-fpm
+          image: devops_laravel_app:latest # Built image
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: app-secrets
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          ports:
+            - containerPort: 9000
+              name: php-fpm
+          livenessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          volumeMounts:
+            - name: shared-files
+              mountPath: /var/www/html
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 82 # www-data uid in Alpine
+
+        # Container 2: Nginx Web Server (Sidecar Pattern)
+        - name: nginx
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+              name: http
+          volumeMounts:
+            - name: shared-files
+              mountPath: /var/www/html
+            - name: nginx-config-volume
+              mountPath: /etc/nginx/conf.d
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /index.php
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /index.php
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10

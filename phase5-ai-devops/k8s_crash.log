@@ -1,0 +1,14 @@
+[2026-06-18 11:15:01] local.INFO: Booting Laravel application...
+[2026-06-18 11:15:02] local.DEBUG: Loading configuration parameters...
+[2026-06-18 11:15:03] local.INFO: Registering service providers.
+[2026-06-18 11:15:04] local.ERROR: Database connection failed. Host: mysql-service.default.svc.cluster.local. Port: 3306. Error: PDOException: SQLSTATE[HY000] [2002] Connection timed out in /var/www/html/index.php:24
+Stack trace:
+#0 /var/www/html/index.php(24): PDO->__construct('mysql:host=mysq...', 'prod_user', '***', Array)
+#1 {main}
+[2026-06-18 11:15:06] local.WARNING: Retrying database connection in 5 seconds... (Attempt 2 of 3)
+[2026-06-18 11:15:11] local.ERROR: Database connection failed. Host: mysql-service.default.svc.cluster.local. Port: 3306. Error: PDOException: SQLSTATE[HY000] [2002] Connection timed out in /var/www/html/index.php:24
+[2026-06-18 11:15:11] local.CRITICAL: Max connection attempts reached. Shutting down application context.
+[2026-06-18 11:15:12] local.INFO: Flushing cached configs.
+FATAL: Application terminated with exit code 1
+k8s-pod-event-monitor: Pod "devops-laravel-app-547dfdfb89-abc12" state changed to CrashLoopBackOff
+k8s-kubelet: Error: Liveness probe failed: HTTP probe failed with statuscode: 502

@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-app
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      volumes:
+        - name: shared-files
+          emptyDir: {}
+        - name: nginx-config-volume
+          configMap:
+            name: {{ .Release.Name }}-nginx-config
+
+      initContainers:
+        - name: install-code
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["cp", "-Rp", "/var/www/html/.", "/shared-volume"]
+          volumeMounts:
+            - name: shared-files
+              mountPath: /shared-volume
+
+      containers:
+        # Container 1: PHP-FPM
+        - name: php-fpm
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: APP_ENV
+              value: {{ .Values.env.APP_ENV | quote }}
+            - name: DB_HOST
+              value: {{ .Values.env.DB_HOST | quote }}
+            - name: DB_DATABASE
+              value: {{ .Values.env.DB_DATABASE | quote }}
+            - name: DB_USERNAME
+              value: {{ .Values.env.DB_USERNAME | quote }}
+            - name: REDIS_HOST
+              value: {{ .Values.env.REDIS_HOST | quote }}
+          resources:
+            requests:
+              cpu: {{ .Values.resources.app.requests.cpu | quote }}
+              memory: {{ .Values.resources.app.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.resources.app.limits.cpu | quote }}
+              memory: {{ .Values.resources.app.limits.memory | quote }}
+          ports:
+            - containerPort: 9000
+              name: php-fpm
+          volumeMounts:
+            - name: shared-files
+              mountPath: /var/www/html
+
+        # Container 2: Nginx Sidecar
+        - name: nginx
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+              name: http
+          volumeMounts:
+            - name: shared-files
+              mountPath: /var/www/html
+            - name: nginx-config-volume
+              mountPath: /etc/nginx/conf.d
+          resources:
+            requests:
+              cpu: {{ .Values.resources.nginx.requests.cpu | quote }}
+              memory: {{ .Values.resources.nginx.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.resources.nginx.limits.cpu | quote }}
+              memory: {{ .Values.resources.nginx.limits.memory | quote }}

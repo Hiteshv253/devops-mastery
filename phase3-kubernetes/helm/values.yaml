@@ -1,0 +1,43 @@
+# Default values for devops-app.
+# This file defines template defaults. Overrides can be supplied per environment (e.g., values-prod.yaml).
+
+replicaCount: 2
+
+image:
+  repository: devops_laravel_app
+  pullPolicy: IfNotPresent
+  tag: "1.0.0"
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: "nginx"
+  host: "api.hiteshdevops.com"
+  tlsSecretName: "devops-laravel-tls"
+  certManagerIssuer: "letsencrypt-production"
+
+resources:
+  app:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+  nginx:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+
+env:
+  APP_ENV: "production"
+  DB_HOST: "mysql-service.default.svc.cluster.local"
+  DB_DATABASE: "production_db"
+  DB_USERNAME: "prod_user"
+  REDIS_HOST: "redis-service.default.svc.cluster.local"

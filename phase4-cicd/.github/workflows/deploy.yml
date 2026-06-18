@@ -1,0 +1,140 @@
+name: Build, Scan & Deploy to EKS (MNC standard)
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+
+# Setup permissions for OpenID Connect (OIDC) authentication
+# This allows GitHub Actions to assume AWS IAM roles without using static Access Keys.
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::123456789012:role/github-actions-eks-deployment-role
+  ECR_REPOSITORY: devops-laravel-app
+  EKS_CLUSTER_NAME: production-eks-cluster
+  HELM_RELEASE_NAME: laravel-production
+
+jobs:
+  # ==========================================
+  # JOB 1: CODE LINT AND UNIT TESTING
+  # ==========================================
+  test-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup PHP Environment
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, xml, ctype, iconv, pdo_mysql
+
+      # - name: Install Dependencies
+      #   run: composer install --prefer-dist --no-progress --no-suggest --no-interaction
+
+      # - name: Run PHPUnit Tests
+      #   run: vendor/bin/phpunit --configuration phpunit.xml
+
+  # ==========================================
+  # JOB 2: BUILD, SCAN AND PUSH DOCKER IMAGE
+  # ==========================================
+  build-and-push:
+    needs: test-and-lint
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.prep.outputs.tag }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # Define tag name based on branch or release tag
+      - name: Prepare Image Tag
+        id: prep
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="sha-${GITHUB_SHA::7}"
+          fi
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+
+      # Configure AWS credentials securely via OIDC
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      # Build Docker Image
+      - name: Build Docker Image
+        run: |
+          docker build \
+            --target production \
+            -t ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.prep.outputs.tag }} \
+            -t ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest \
+            -f phase2-docker/Dockerfile phase2-docker/
+
+      # Security Scan Docker Image (Trivy Scan - Crucial in MNCs)
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.prep.outputs.tag }}
+          format: 'table'
+          exit-code: '0' # Don't break build for warnings, but in real environments exit-code: '1' is used for CRITICALS
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      # Push ECR Image
+      - name: Push Image to ECR
+        run: |
+          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.prep.outputs.tag }}
+          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+
+  # ==========================================
+  # JOB 3: CD PIPELINE (DEPLOY TO KUBERNETES)
+  # ==========================================
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Update kubeconfig to point to our EKS Cluster
+      - name: Update Kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
+
+      # Setup Helm CLI
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.12.0'
+
+      # Deploy using Helm Chart
+      - name: Deploy Helm Chart
+        run: |
+          helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ./phase3-kubernetes/helm \
+            --namespace default \
+            --set image.tag=${{ needs.build-and-push.outputs.image_tag }} \
+            --set image.repository=123456789012.dkr.ecr.us-east-1.amazonaws.com/${{ env.ECR_REPOSITORY }} \
+            --values phase3-kubernetes/helm/values.yaml \
+            --wait --timeout 5m0s

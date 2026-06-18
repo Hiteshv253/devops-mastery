@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: default
+data:
+  APP_ENV: "production"
+  DB_HOST: "mysql-service.default.svc.cluster.local"
+  DB_DATABASE: "production_db"
+  DB_USERNAME: "prod_user"
+  REDIS_HOST: "redis-service.default.svc.cluster.local"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: default
+data:
+  default.conf: |
+    server {
+        listen 80;
+        server_name _;
+        root /var/www/html;
+        index index.php index.html;
+
+        charset utf-8;
+
+        location / {
+            try_files $uri $uri/ /index.php?$query_string;
+        }
+
+        # Healthcheck endpoint (highly used in GCP/AWS Load Balancers)
+        location /healthz {
+            access_log off;
+            add_header Content-Type text/plain;
+            return 200 "healthy";
+        }
+
+        error_page 404 /index.php;
+
+        # Forward PHP requests to PHP-FPM running on Localhost!
+        location ~ \.php$ {
+            fastcgi_pass 127.0.0.1:9000;
+            fastcgi_index index.php;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            include fastcgi_params;
+            fastcgi_hide_header X-Powered-By;
+        }
+
+        location ~ /\.(?!well-known).* {
+            deny all;
+        }
+    }
