@@ -1,8 +1,6 @@
 from groq import Groq
 
-client = Groq(
-    api_key="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"
-)
+client = Groq(api_key="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")
 
 
 async def ask_devops_ai(question):
@@ -28,13 +26,10 @@ Azure
 Linux
 
 Give short and practical answers.
-"""
+""",
             },
-            {
-                "role": "user",
-                "content": question
-            }
-        ]
+            {"role": "user", "content": question},
+        ],
     )
 
     return response.choices[0].message.content

@@ -1,3 +1,5 @@
+-pyhon-------------------------------------------------
+
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -r requirements.txt
 
@@ -18,3 +20,12 @@ find . \
   -o -name ".ruff_cache" \) \
   -type d -exec rm -rf {} + && \
 find . \( -name "*.pyc" -o -name "*.pyo" \) -type f -delete
+
+
+
+python3 -m py_compile devops_bootstrap.py // compail a code
+
+-Docker-----------------------------------------
+
+
+docker build -t weather-platform .

@@ -16,7 +16,4 @@ app.include_router(chat_router)
 @app.get("/")
 async def home(request: Request):
 
-    return templates.TemplateResponse(
-        request=request,
-        name="index.html"
-    )
+    return templates.TemplateResponse(request=request, name="index.html")

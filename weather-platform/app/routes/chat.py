@@ -12,27 +12,17 @@ async def get_chat(question: str):
 
     answer = await ask_devops_ai(question)
 
-    return {
-        "answer": answer
-    }
+    return {"answer": answer}
 
 
 # POST API with file upload
 @router.post("/chat")
-async def post_chat(
-    question: str = Form(...),
-    file: UploadFile = File(None)
-):
+async def post_chat(question: str = Form(...), file: UploadFile = File(None)):
 
     file_content = ""
 
     if file:
-        file_content = (
-            await file.read()
-        ).decode(
-            "utf-8",
-            errors="ignore"
-        )
+        file_content = (await file.read()).decode("utf-8", errors="ignore")
 
     prompt = f"""
 Question:
@@ -46,6 +36,4 @@ File Content:
 
     answer = await ask_devops_ai(prompt)
 
-    return {
-        "answer": answer
-    }
+    return {"answer": answer}

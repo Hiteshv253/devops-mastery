@@ -1,0 +1,12 @@
+services:
+
+  weather-platform:
+
+    build: .
+
+    container_name: weather-platform
+
+    ports:
+      - "8000:8000"
+
+    restart: always
