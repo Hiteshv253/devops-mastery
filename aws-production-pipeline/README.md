@@ -1,54 +1,64 @@
-# AWS Enterprise Real-Time Deployment Pipeline
+# AWS Terraform Learning Lab (UAT & Production EC2)
 
-This folder contains a complete, automated DevOps setup mimicking a real production workflow inside major MNC companies. It uses **Python, Terraform, Docker, ECR, and AWS Systems Manager (SSM)** to deploy an application to isolated Development and Production EC2 servers without using any SSH Keys!
+Welcome! This folder contains a **simplified, beginner-friendly** project to help you learn the core concepts of Terraform and Infrastructure as Code (IaC) lifecycle operations.
 
----
-
-## Direct Link to Code Files
-- **Terraform Configuration**: [terraform/main.tf](file:///C:/Users/Hitesh/.gemini/antigravity/scratch/devops-mastery/aws-production-pipeline/terraform/main.tf)
-- **App Dockerfile**: [app/Dockerfile](file:///C:/Users/Hitesh/.gemini/antigravity/scratch/devops-mastery/aws-production-pipeline/app/Dockerfile)
-- **Python Orchestrator**: [aws_orchestrator.py](file:///C:/Users/Hitesh/.gemini/antigravity/scratch/devops-mastery/aws-production-pipeline/aws_orchestrator.py)
+Instead of writing complex network and security parameters, this setup uses AWS's default network settings to quickly spin up two EC2 servers:
+1. **UAT EC2 Server**
+2. **Production EC2 Server**
 
 ---
 
-## Why this is "MNC-Standard" Architecture
+## What is inside this project?
 
-1. **Security Isolation (VPC)**: The resources are deployed inside a custom VPC (`10.20.0.0/16`) to isolate them from other projects.
-2. **Keyless Deployment (SSM)**: We do NOT use SSH keys to deploy code. Instead, we use **AWS Systems Manager (SSM) Run Command**. This is a massive enterprise security standard because:
-   - We don't have to manage SSH keys (`.pem` files).
-   - We don't need to expose Port 22 to the public internet.
-   - The deployment is triggered directly by the secure AWS SSM Agent running inside the EC2 instance.
-3. **Role-Based Security (IAM Instance Profile)**: The EC2 instances are attached to an IAM Role (`devops-ec2-ecr-pull-role`) that has policies to pull images from **Amazon ECR** and register with **SSM**. We do not hardcode any credentials inside the instances!
+- **[terraform/main.tf](file:///C:/Users/Hitesh/.gemini/antigravity/scratch/devops-mastery/aws-production-pipeline/terraform/main.tf)**: Defines the AWS EC2 resources and a simple security group.
+- **[terraform/variables.tf](file:///C:/Users/Hitesh/.gemini/antigravity/scratch/devops-mastery/aws-production-pipeline/terraform/variables.tf)**: Contains default values for AWS Region, AMI ID, and Instance size.
+- **[terraform/outputs.tf](file:///C:/Users/Hitesh/.gemini/antigravity/scratch/devops-mastery/aws-production-pipeline/terraform/outputs.tf)**: Outputs the Public IP addresses and Instance IDs of your deployed servers.
+- **[aws_orchestrator.py](file:///C:/Users/Hitesh/.gemini/antigravity/scratch/devops-mastery/aws-production-pipeline/aws_orchestrator.py)**: A simple Python script that acts as a control panel to run CREATE, READ, UPDATE, and DELETE operations.
 
 ---
 
-## How to Run the pipeline
+## How to use this project
 
-### Prerequisites
-1. **AWS CLI** configured (`aws configure` completed).
-2. **Docker Desktop** running locally (required to build and push the Docker image).
-3. **Python 3.x** installed.
+### Step 1: Configure your AWS credentials
+Open your terminal (PowerShell or Command Prompt) and configure your AWS CLI keys:
+```bash
+aws configure
+```
+Enter your AWS Access Key, Secret Key, and default region (e.g., `us-east-1`).
 
-### Execution Steps
+### Step 2: Run the Orchestrator
+Launch the Python script:
+```bash
+python aws_orchestrator.py
+```
 
-1. Open your terminal and navigate to the project directory:
-   ```bash
-   cd C:\Users\Hitesh\.gemini\antigravity\scratch\devops-mastery\aws-production-pipeline
-   ```
+You will see the control menu:
+```text
+1) CREATE: Provision UAT & Prod EC2 Servers
+2) READ/INFO: View live resource details & Public IPs
+3) EDIT/UPDATE: Change Instance Type (e.g. t2.micro -> t2.small)
+4) DELETE: Destroy all UAT & Prod resources
+5) Exit
+```
 
-2. Run the master Python orchestrator:
-   ```bash
-   python aws_orchestrator.py
-   ```
+---
 
-3. Select **Option 1**:
-   - The script will prompt you for an AWS Key Pair name. (You can press Enter to use the default dummy key, as SSH is not required for SSM deployment).
-   - Terraform will deploy the VPC, IAM roles, ECR repository, and Dev/Prod EC2 instances.
-   - The script will extract output variables (Registry URL, Public IPs).
-   - It will log your local Docker client into AWS ECR, build the `./app` image, and push it to ECR.
-   - It will wait for the EC2 instances to boot and report Online in AWS Systems Manager.
-   - It will trigger SSM Run Command to deploy the Docker container to the Dev instance (Port 8080) and Prod instance (Port 80).
-   - It prints the live URLs.
+## Understanding the Lifecycle Concepts
 
-4. Select **Option 2** (Teardown):
-   - To clean up and delete all AWS resources to avoid any charges, run the script and select Option 2. It will execute `terraform destroy` to clear everything.
+### 1. CREATE (Option 1)
+When you choose **Option 1**, the Python script runs:
+- `terraform init`: Downloads the AWS plugin provider.
+- `terraform apply -auto-approve`: Tells AWS to provision the security group and the 2 EC2 instances. It creates a local state file called `terraform.tfstate`.
+
+### 2. READ / INFO (Option 2)
+When you choose **Option 2**, the script queries the local `terraform.tfstate` database to read the live Public IPs and resource IDs. It displays them directly on your screen.
+
+### 3. EDIT / UPDATE (Option 3)
+When you choose **Option 3**, you can change the instance size (from `t2.micro` to `t2.small`). The script runs:
+- `terraform apply -var="instance_type=t2.small"`
+- **How Terraform handles updates**:
+  Terraform compares the new configuration (size = `t2.small`) with the existing state file. Since changing the instance type on AWS does not require deleting the server (it only requires stopping and resizing it), Terraform will **update the instance size in-place** without creating new EC2 instances!
+
+### 4. DELETE (Option 4)
+When you choose **Option 4**, the script runs:
+- `terraform destroy -auto-approve`: Tells AWS to terminate both EC2 instances and delete the security group. This ensures you do not incur any AWS charges.

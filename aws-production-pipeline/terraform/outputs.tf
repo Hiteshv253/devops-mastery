@@ -1,24 +1,19 @@
-output "ecr_repository_url" {
-  description = "The URL of the ECR repository"
-  value       = aws_ecr_repository.app_repo.repository_url
+output "uat_public_ip" {
+  description = "UAT EC2 Instance Public IP"
+  value       = aws_instance.uat_server.public_ip
 }
 
-output "dev_instance_public_ip" {
-  description = "Public IP of Dev EC2 instance"
-  value       = aws_instance.dev_ec2.public_ip
+output "prod_public_ip" {
+  description = "Production EC2 Instance Public IP"
+  value       = aws_instance.prod_server.public_ip
 }
 
-output "prod_instance_public_ip" {
-  description = "Public IP of Prod EC2 instance"
-  value       = aws_instance.prod_ec2.public_ip
-}
-
-output "dev_instance_id" {
-  description = "Instance ID of Dev EC2"
-  value       = aws_instance.dev_ec2.id
+output "uat_instance_id" {
+  description = "UAT EC2 Instance ID"
+  value       = aws_instance.uat_server.id
 }
 
 output "prod_instance_id" {
-  description = "Instance ID of Prod EC2"
-  value       = aws_instance.prod_ec2.id
+  description = "Production EC2 Instance ID"
+  value       = aws_instance.prod_server.id
 }

@@ -1,6 +1,8 @@
-# Complete AWS Infrastructure for Development and Production Environments
+# Simple learning Terraform code with a self-contained custom VPC network 
+# (This guarantees successful deployment even if your AWS account has no default VPC subnets)
+
 terraform {
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.0.0"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -13,41 +15,40 @@ provider "aws" {
   region = var.aws_region
 }
 
-# 1. Custom VPC for Isolation
-resource "aws_vpc" "devops_vpc" {
-  cidr_block           = "10.20.0.0/16"
+# 1. Custom VPC for network isolation
+resource "aws_vpc" "learning_vpc" {
+  cidr_block           = "10.0.0.0/16"
   enable_dns_hostnames = true
   enable_dns_support   = true
 
   tags = {
-    Name = "devops-realtime-vpc"
+    Name = "learning-vpc"
   }
 }
 
-# 2. Public Subnet
+# 2. Public Subnet inside our VPC
 resource "aws_subnet" "public_subnet" {
-  vpc_id                  = aws_vpc.devops_vpc.id
-  cidr_block              = "10.20.1.0/24"
-  availability_zone       = "${var.aws_region}a"
-  map_public_ip_on_launch = true
+  vpc_id                  = aws_vpc.learning_vpc.id
+  cidr_block              = "10.0.1.0/24"
+  map_public_ip_on_launch = true # Automatically assigns a public IP to EC2 instances
 
   tags = {
-    Name = "devops-public-subnet"
+    Name = "learning-subnet"
   }
 }
 
-# 3. Internet Gateway
+# 3. Internet Gateway (Allows traffic to flow in/out of the VPC)
 resource "aws_internet_gateway" "igw" {
-  vpc_id = aws_vpc.devops_vpc.id
+  vpc_id = aws_vpc.learning_vpc.id
 
   tags = {
-    Name = "devops-igw"
+    Name = "learning-igw"
   }
 }
 
-# 4. Route Table for Internet Gateway routing
+# 4. Route Table (Directs outbound traffic to the Internet Gateway)
 resource "aws_route_table" "public_rt" {
-  vpc_id = aws_vpc.devops_vpc.id
+  vpc_id = aws_vpc.learning_vpc.id
 
   route {
     cidr_block = "0.0.0.0/0"
@@ -55,150 +56,74 @@ resource "aws_route_table" "public_rt" {
   }
 
   tags = {
-    Name = "devops-public-rt"
+    Name = "learning-route-table"
   }
 }
 
-# 5. Route Table Association
+# 5. Connect our Route Table to our Subnet
 resource "aws_route_table_association" "public_assoc" {
   subnet_id      = aws_subnet.public_subnet.id
   route_table_id = aws_route_table.public_rt.id
 }
 
-# 6. AWS Elastic Container Registry (ECR) for storing Docker images
-resource "aws_ecr_repository" "app_repo" {
-  name                 = "devops-realtime-app"
-  image_tag_mutability = "MUTABLE"
- //force_destroy        = true # Allows automatic deletion via terraform destroy even if contains images
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-
-  tags = {
-    Name = "devops-app-ecr"
-  }
-}
-
-# 7. Security Group for EC2 Web Servers
+# 6. Security Group (Created inside our Custom VPC)
 resource "aws_security_group" "web_sg" {
-  name        = "devops-web-sg"
-  description = "Security group for Dev and Prod web servers"
-  vpc_id      = aws_vpc.devops_vpc.id
+  name        = "simple-web-sg"
+  description = "Allow SSH and HTTP access"
+  vpc_id      = aws_vpc.learning_vpc.id
 
-  # SSH for deployment
   ingress {
+    description = "SSH Access"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Dev Port (8080)
   ingress {
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # Prod Port (80)
-  ingress {
+    description = "HTTP Access"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Outbound access
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-}
-
-# 8. IAM Role for EC2 instances to pull from ECR
-resource "aws_iam_role" "ec2_ecr_role" {
-  name = "devops-ec2-ecr-pull-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
-  })
-}
-
-# Attach ECR ReadOnly policy to the role
-resource "aws_iam_role_policy_attachment" "ecr_attach" {
-  role       = aws_iam_role.ec2_ecr_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-}
-
-# Attach SSM Core policy for keyless Systems Manager Run Command
-resource "aws_iam_role_policy_attachment" "ssm_attach" {
-  role       = aws_iam_role.ec2_ecr_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-}
-
-# IAM Instance Profile to attach the role to EC2 instances
-resource "aws_iam_instance_profile" "ec2_profile" {
-  name = "devops-ec2-instance-profile"
-  role = aws_iam_role.ec2_ecr_role.name
-}
-
-# 9. Development EC2 Instance
-resource "aws_instance" "dev_ec2" {
-  ami                  = var.ami_id
-  instance_type        = "t2.micro"
-  subnet_id            = aws_subnet.public_subnet.id
-  vpc_security_group_ids = [aws_security_group.web_sg.id]
-  iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
-  key_name             = var.key_pair_name
-
-  user_data = <<-EOF
-              #!/bin/bash
-              dnf update -y
-              dnf install -y docker
-              systemctl start docker
-              systemctl enable docker
-              usermod -aG docker ec2-user
-              EOF
 
   tags = {
-    Name        = "dev-ec2-server"
-    Environment = "development"
+    Name = "simple-sg"
   }
 }
 
-# 10. Production EC2 Instance
-resource "aws_instance" "prod_ec2" {
-  ami                  = var.ami_id
-  instance_type        = "t2.micro"
-  subnet_id            = aws_subnet.public_subnet.id
+# 7. UAT EC2 Instance (Placed in our custom subnet)
+resource "aws_instance" "uat_server" {
+  ami                    = var.ami_id
+  instance_type          = var.instance_type
+  subnet_id              = aws_subnet.public_subnet.id
   vpc_security_group_ids = [aws_security_group.web_sg.id]
-  iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
-  key_name             = var.key_pair_name
-
-  user_data = <<-EOF
-              #!/bin/bash
-              dnf update -y
-              dnf install -y docker
-              systemctl start docker
-              systemctl enable docker
-              usermod -aG docker ec2-user
-              EOF
+  key_name               = var.key_pair_name
 
   tags = {
-    Name        = "prod-ec2-server"
-    Environment = "production"
+    Name        = "uat-ec2-server"
+    Environment = "UAT"
+  }
+}
+
+# 8. Production EC2 Instance (Placed in our custom subnet)
+resource "aws_instance" "prod_server" {
+  ami                    = var.ami_id
+  instance_type          = var.instance_type
+  subnet_id              = aws_subnet.public_subnet.id
+  vpc_security_group_ids = [aws_security_group.web_sg.id]
+  key_name               = var.key_pair_name
+
+  tags = {
+    Name        = "production-ec2-server"
+    Environment = "Production"
   }
 }
