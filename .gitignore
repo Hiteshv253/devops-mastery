@@ -13,3 +13,75 @@ venv/
 terraform.tfstate
 terraform.tfstate.backup
 *.venv
+
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+terraform.tfplan
+.terraform.lock.hcl
+
+# Kubernetes
+*.kubeconfig
+kubeconfig
+k8s/secrets/*
+*.secret.yaml
+*.secret.yml
+
+# Docker
+docker-data/
+docker-volumes/
+*.tar
+*.tar.gz
+
+# Logs
+logs/
+*.log
+*.out
+
+# Grafana
+grafana/data/
+grafana/plugins/
+
+# Prometheus
+prometheus/data/
+
+# ArgoCD
+argocd/secrets/
+argocd/*.secret.yaml
+
+# Helm
+*.tgz
+charts/*/charts/
+
+# Environment Files
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+
+# NodeJS
+node_modules/
+
+# Build Files
+dist/
+build/
+target/
