@@ -109,7 +109,33 @@ run("apt install -y terraform")
 # K3s
 # --------------------------------------------------
 
+# --------------------------------------------------
+# K3s
+# --------------------------------------------------
+
 run("curl -sfL https://get.k3s.io | sh -")
+
+# Configure kubectl for root
+run("mkdir -p /root/.kube")
+run("cp /etc/rancher/k3s/k3s.yaml /root/.kube/config")
+run("chmod 600 /root/.kube/config")
+
+# Configure kubectl for sudo user
+if os.environ.get("SUDO_USER"):
+    user = os.environ["SUDO_USER"]
+
+    run(f"mkdir -p /home/{user}/.kube")
+    run(f"cp /etc/rancher/k3s/k3s.yaml /home/{user}/.kube/config")
+    run(f"chown -R {user}:{user} /home/{user}/.kube")
+
+    run(
+        f"grep -qxF 'export KUBECONFIG=$HOME/.kube/config' "
+        f"/home/{user}/.bashrc || "
+        f"echo 'export KUBECONFIG=$HOME/.kube/config' >> /home/{user}/.bashrc"
+    )
+
+# Current script session ke liye
+os.environ["KUBECONFIG"] = "/etc/rancher/k3s/k3s.yaml"
 
 # --------------------------------------------------
 # Jenkins
@@ -149,7 +175,7 @@ run(
 
 run("helm repo update")
 
-import time
+
 import time
 
 print("Waiting for Kubernetes API...")
@@ -176,33 +202,30 @@ else:
 # Monitoring
 # --------------------------------------------------
 
-run("kubectl create namespace argocd || true")
+run("kubectl create namespace monitoring || true")
 
 run(
     "helm upgrade --install prometheus "
     "prometheus-community/prometheus "
-    "-n monitoring"
+    "-n monitoring --create-namespace"
 )
 
 run(
     "helm upgrade --install grafana "
     "grafana/grafana "
-    "-n monitoring"
+    "-n monitoring --create-namespace"
 )
 
 # --------------------------------------------------
 # ArgoCD
 # --------------------------------------------------
 
-run(
-    "kubectl create namespace argocd "
-    "--dry-run=client -o yaml | kubectl apply -f -"
-)
+run("kubectl create namespace argocd || true")
 
 run(
     "helm upgrade --install argocd "
     "argo/argo-cd "
-    "-n argocd"
+    "-n argocd --create-namespace"
 )
 
 print("\n==============================")

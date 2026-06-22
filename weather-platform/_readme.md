@@ -25,6 +25,17 @@ find . \( -name "*.pyc" -o -name "*.pyo" \) -type f -delete
 
 python3 -m py_compile devops_bootstrap.py // compail a code
 
+-k8s-----------------------------------------
+export KUBECONFIG=$HOME/.kube/config
+mkdir -p ~/.kube
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+sudo chown $USER:$USER ~/.kube/config
+
+echo 'export KUBECONFIG=$HOME/.kube/config' >> ~/.bashrc
+source ~/.bashrc
+kubectl get nodes
+kubectl config view --minify
+
 -Docker-----------------------------------------
 
 
