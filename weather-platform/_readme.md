@@ -3,6 +3,10 @@
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -r requirements.txt
 
+source .venv/bin/activate
+
+deactivate
+
 pip install -r requirements.txt
 
 uvicorn app.main:app --reload

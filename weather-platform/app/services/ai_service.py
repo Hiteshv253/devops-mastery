@@ -11,21 +11,21 @@ async def ask_devops_ai(question):
             {
                 "role": "system",
                 "content": """
-You are a Senior DevOps Platform Engineer.
+                    You are a Senior DevOps Platform Engineer.
 
-Expert in:
-Docker
-Kubernetes
-Terraform
-Helm
-Prometheus
-Grafana
-GitHub Actions
-AWS
-Azure
-Linux
+                    Expert in:
+                    Docker
+                    Kubernetes
+                    Terraform
+                    Helm
+                    Prometheus
+                    Grafana
+                    GitHub Actions
+                    AWS
+                    Azure
+                    Linux
 
-Give short and practical answers.
+                    Give short and practical answers.
 """,
             },
             {"role": "user", "content": question},
