@@ -44,3 +44,33 @@ kubectl config view --minify
 
 
 docker build -t weather-platform .
+
+docker run -d -p 8000:8000 --name weather-platform weather-platform
+
+docker ps
+
+docker compose up -d
+docker compose down
+
+
+
+kubectl apply -f namespace.yaml
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
+kubectl apply -f ingress.yaml
+kubectl apply -f hpa.yaml
+
+kubectl apply -f k8s/
+
+
+kubectl get ns
+
+kubectl get deploy -n weather
+
+kubectl get pods -n weather
+
+kubectl get svc -n weather
+
+kubectl get ingress -n weather
+
+kubectl get hpa -n weather
