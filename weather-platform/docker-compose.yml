@@ -10,3 +10,13 @@ services:
       - "8000:8000"
 
     restart: always
+
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY:-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}
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

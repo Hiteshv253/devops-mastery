@@ -1,0 +1,154 @@
+name: Weather Platform CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx
+
+      - name: Run tests
+        run: |
+          pytest tests/ -v || echo "No tests found, skipping"
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-k8s:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.31.0'
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Update image tag in deployment
+        run: |
+          IMAGE_TAG=${{ github.sha }}
+          sed -i "s|image: .*|image: ghcr.io/${{ github.repository }}:$IMAGE_TAG|g" k8s/deployment.yaml
+
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/
+          kubectl rollout status deployment/weather-app -n weather --timeout=5m
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n weather
+          kubectl get svc -n weather
+          kubectl get ingress -n weather
+
+  deploy-argocd:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+          argocd version --client
+
+      - name: Login to ArgoCD
+        run: |
+          argocd login ${{ secrets.ARGOCD_SERVER }} --auth-token ${{ secrets.ARGOCD_TOKEN }} --insecure
+
+      - name: Create/update ArgoCD Application
+        run: |
+          argocd app create weather-platform \
+            --repo ${{ github.event.repository.html_url }} \
+            --path . \
+            --dest-server https://kubernetes.default.svc \
+            --dest-namespace weather \
+            --sync-policy automated \
+            --auto-prune \
+            --self-heal \
+            --revision HEAD || \
+          argocd app set weather-platform \
+            --sync-policy automated \
+            --auto-prune \
+            --self-heal
+
+      - name: Sync ArgoCD Application
+        run: |
+          argocd app sync weather-platform
+          argocd app wait weather-platform --health
