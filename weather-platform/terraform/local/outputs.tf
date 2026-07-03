@@ -1,18 +1,3 @@
-output "eks_cluster_name" {
-  value       = module.aws_infrastructure.eks_cluster_name
-  description = "EKS Cluster Name"
-}
-
-output "eks_cluster_endpoint" {
-  value       = module.aws_infrastructure.eks_cluster_endpoint
-  description = "EKS Cluster API Endpoint"
-}
-
-output "ecr_repository_url" {
-  value       = module.aws_infrastructure.ecr_repository_url
-  description = "ECR Repository URL"
-}
-
 output "weather_namespace" {
   value       = module.kubernetes_resources.weather_namespace
   description = "Weather application namespace"

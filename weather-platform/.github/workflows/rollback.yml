@@ -1,0 +1,47 @@
+name: Rollback Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to Rollback'
+        required: true
+        default: 'local'
+        type: choice
+        options:
+          - local
+          - aws
+          - azure
+      revision:
+        description: 'Helm revision to roll back to (leave blank to roll back to previous)'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  rollback:
+    name: Helm Rollback
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Run Helm Rollback
+        run: |
+          echo "Rolling back weather-platform in ${{ github.event.inputs.environment }} environment..."
+          if [ -z "${{ github.event.inputs.revision }}" ]; then
+            helm rollback weather-platform -n weather
+          else
+            helm rollback weather-platform ${{ github.event.inputs.revision }} -n weather
+          fi
+
+      - name: Verify Rollback Status
+        run: |
+          kubectl rollout status deployment/weather-platform -n weather --timeout=120s
+          kubectl get pods -n weather

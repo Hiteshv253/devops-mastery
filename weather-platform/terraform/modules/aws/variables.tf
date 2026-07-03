@@ -16,21 +16,9 @@ variable "environment" {
   default     = "production"
 }
 
-variable "docker_image_tag" {
-  type        = string
-  description = "Docker image tag for application deployment"
-  default     = "latest"
-}
-
-variable "groq_api_key" {
-  type        = string
-  description = "Groq API Key"
-  sensitive   = true
-}
-
 variable "instance_types" {
   type        = list(string)
-  description = "EKS worker node instance types"
+  description = "EKS node group instance types"
   default     = ["t3.medium"]
 }
 

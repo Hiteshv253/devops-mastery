@@ -1,0 +1,84 @@
+name: Destroy Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to Destroy'
+        required: true
+        default: 'aws'
+        type: choice
+        options:
+          - aws
+          - azure
+      confirmation:
+        description: 'Type "DESTROY" to confirm teardown'
+        required: true
+        default: 'NO'
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  destroy:
+    name: Terraform Destroy
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirmation == 'DESTROY'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.8.0'
+
+      # AWS Credentials Configuration
+      - name: Configure AWS Credentials
+        if: ${{ github.event.inputs.environment == 'aws' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Azure Credentials Configuration
+      - name: Log in to Azure
+        if: ${{ github.event.inputs.environment == 'azure' }}
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Set working directory dynamically
+      - name: Set Environment Directory
+        id: set-dir
+        run: |
+          if [ "${{ github.event.inputs.environment }}" = "azure" ]; then
+            echo "dir=terraform/azure" >> $GITHUB_OUTPUT
+            echo "env_name=azure" >> $GITHUB_OUTPUT
+          else
+            echo "dir=terraform/aws" >> $GITHUB_OUTPUT
+            echo "env_name=aws" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Terraform Init
+        run: |
+          cd ${{ steps.set-dir.outputs.dir }}
+          if [ "${{ steps.set-dir.outputs.env_name }}" = "aws" ]; then
+            terraform init \
+              -backend-config="bucket=weather-platform-terraform-state" \
+              -backend-config="key=weather-platform/terraform.tfstate" \
+              -backend-config="region=${{ env.AWS_REGION }}"
+          else
+            terraform init \
+              -backend-config="resource_group_name=weather-platform-rg" \
+              -backend-config="storage_account_name=weatherplatformtfstate" \
+              -backend-config="container_name=terraform-state" \
+              -backend-config="key=weather-platform/terraform.tfstate"
+          fi
+
+      - name: Terraform Destroy
+        run: |
+          cd ${{ steps.set-dir.outputs.dir }}
+          terraform destroy -var="groq_api_key=${{ secrets.GROQ_API_KEY }}" -auto-approve

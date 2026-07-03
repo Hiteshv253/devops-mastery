@@ -1,30 +1,39 @@
-output "app_service_default_hostname" {
-  description = "Default hostname of the App Service"
-  value       = azurerm_linux_web_app.weather_app.default_hostname
+output "aks_cluster_name" {
+  value       = module.azure_infrastructure.aks_cluster_name
+  description = "AKS Cluster Name"
 }
 
-output "app_service_outbound_ip_addresses" {
-  description = "Outbound IP addresses of the App Service"
-  value       = azurerm_linux_web_app.weather_app.outbound_ip_addresses
+output "aks_cluster_endpoint" {
+  value       = module.azure_infrastructure.aks_cluster_endpoint
+  description = "AKS Cluster API Endpoint"
 }
 
 output "acr_login_server" {
-  description = "Login server of the Container Registry"
-  value       = azurerm_container_registry.acr.login_server
+  value       = module.azure_infrastructure.acr_login_server
+  description = "ACR Login Server"
 }
 
-output "acr_admin_username" {
-  description = "Admin username of the Container Registry"
-  value       = azurerm_container_registry.acr.admin_username
-  sensitive   = true
+output "resource_group_name" {
+  value       = module.azure_infrastructure.resource_group_name
+  description = "Azure Resource Group Name"
 }
 
-output "key_vault_uri" {
-  description = "URI of the Key Vault"
-  value       = azurerm_key_vault.main.vault_uri
+output "weather_namespace" {
+  value       = module.kubernetes_resources.weather_namespace
+  description = "Weather application namespace"
 }
 
-output "application_insights_instrumentation_key" {
-  description = "Instrumentation key of Application Insights"
-  value       = azurerm_application_insights.weather_app.instrumentation_key
+output "monitoring_namespace" {
+  value       = module.kubernetes_resources.monitoring_namespace
+  description = "Monitoring namespace"
+}
+
+output "argocd_namespace" {
+  value       = module.kubernetes_resources.argocd_namespace
+  description = "ArgoCD namespace"
+}
+
+output "app_release_status" {
+  value       = module.kubernetes_resources.app_release_status
+  description = "Helm release status"
 }

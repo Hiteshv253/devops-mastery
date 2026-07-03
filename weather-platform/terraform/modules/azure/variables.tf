@@ -22,18 +22,6 @@ variable "environment" {
   default     = "production"
 }
 
-variable "docker_image_tag" {
-  type        = string
-  description = "Docker image tag for application deployment"
-  default     = "latest"
-}
-
-variable "groq_api_key" {
-  type        = string
-  description = "Groq API Key"
-  sensitive   = true
-}
-
 variable "vm_size" {
   type        = string
   description = "AKS node VM size"
